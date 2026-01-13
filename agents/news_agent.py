@@ -96,6 +96,68 @@ async def search_news(topic: str, max_results: int = 5):
         return NewsResponse(articles=[])
 
 
+@app.get("/.well-known/agent-card.json")
+async def agent_card():
+    """
+    Agent Card - A2A 표준 프로토콜
+    Agent의 능력과 스펙을 공개
+    """
+    return {
+        "version": "1.0.0",
+        "name": "뉴스 수집 Agent",
+        "description": "기술 뉴스 검색 및 수집 전문 Agent. DuckDuckGo 기반 최신 뉴스 검색.",
+        "url": "http://localhost:10020",
+        "capabilities": [
+            {
+                "name": "search_news",
+                "description": "기술 관련 최신 뉴스 검색",
+                "endpoint": "/search",
+                "method": "POST",
+                "parameters": {
+                    "topic": {
+                        "type": "string",
+                        "description": "검색할 기술 주제",
+                        "required": True,
+                        "example": "RAG"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "최대 검색 결과 개수",
+                        "required": False,
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 10
+                    }
+                },
+                "response_schema": {
+                    "type": "NewsResponse",
+                    "description": "뉴스 기사 리스트",
+                    "properties": {
+                        "articles": {
+                            "type": "array",
+                            "items": {
+                                "type": "Article",
+                                "properties": {
+                                    "title": "string",
+                                    "source": "string",
+                                    "date": "string",
+                                    "summary": "string",
+                                    "url": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "tags": ["news", "search", "tech", "trending"],
+        "author": "Tech Trend Scout Team",
+        "contact": "http://localhost:10020",
+        "created_at": "2025-01-13",
+        "updated_at": "2025-01-13"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=10020)

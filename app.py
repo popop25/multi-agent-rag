@@ -242,7 +242,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 2rem 0;'>
-        <p>🚀 Tech Trend Scout | AI Bootcamp 최종 과제</p>
+        <p>🚀 Tech Trend Scout | AI</p>
         <p style='font-size: 0.9rem;'>Multi-Agent A2A 기반 기술 트렌드 분석 서비스</p>
     </div>
     """,

@@ -65,6 +65,68 @@ async def search_papers(topic: str, max_results: int = 5):
         return PaperResponse(papers=[])
 
 
+@app.get("/.well-known/agent-card.json")
+async def agent_card():
+    """
+    Agent Card - A2A 표준 프로토콜
+    Agent의 능력과 스펙을 공개
+    """
+    return {
+        "version": "1.0.0",
+        "name": "논문 검색 Agent",
+        "description": "arXiv 학술 논문 검색 전문 Agent. 최신 AI/ML 연구 논문 수집.",
+        "url": "http://localhost:10021",
+        "capabilities": [
+            {
+                "name": "search_papers",
+                "description": "arXiv에서 학술 논문 검색",
+                "endpoint": "/search",
+                "method": "POST",
+                "parameters": {
+                    "topic": {
+                        "type": "string",
+                        "description": "검색할 연구 주제",
+                        "required": True,
+                        "example": "machine learning"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "최대 검색 결과 개수",
+                        "required": False,
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 10
+                    }
+                },
+                "response_schema": {
+                    "type": "PaperResponse",
+                    "description": "논문 리스트",
+                    "properties": {
+                        "papers": {
+                            "type": "array",
+                            "items": {
+                                "type": "Paper",
+                                "properties": {
+                                    "title": "string",
+                                    "authors": "array[string]",
+                                    "date": "string",
+                                    "abstract": "string",
+                                    "url": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "tags": ["paper", "arxiv", "research", "academic"],
+        "author": "Tech Trend Scout Team",
+        "contact": "http://localhost:10021",
+        "created_at": "2025-01-13",
+        "updated_at": "2025-01-13"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=10021)

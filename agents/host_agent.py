@@ -10,6 +10,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import TypedDict, List
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from langgraph.graph import StateGraph, END
@@ -36,8 +37,71 @@ from models.schemas import (
 # 환경 변수 로드
 load_dotenv()
 
+
+# ========== Agent 자동 발견 ==========
+
+async def discover_agents():
+    """
+    Agent 자동 발견
+    각 Agent의 AgentCard를 조회하여 정보 수집
+    """
+    agent_urls = [
+        "http://localhost:10020",
+        "http://localhost:10021"
+    ]
+    
+    discovered = []
+    
+    print("\n[Host] ===== Agent 자동 발견 시작 =====")
+    
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for url in agent_urls:
+            try:
+                response = await client.get(f"{url}/.well-known/agent-card.json")
+                response.raise_for_status()
+                
+                card = response.json()
+                discovered.append(card)
+                
+                print(f"[Host] ✅ Agent 발견: {card['name']}")
+                print(f"       URL: {card['url']}")
+                print(f"       능력: {[cap['name'] for cap in card['capabilities']]}")
+                
+            except httpx.ConnectError:
+                print(f"[Host] ⚠️  Agent 연결 불가: {url}")
+            except Exception as e:
+                print(f"[Host] ❌ Agent 발견 실패 ({url}): {e}")
+    
+    print(f"[Host] ===== 총 {len(discovered)}개 Agent 발견 완료 =====\n")
+    
+    return discovered
+
+
+# ========== Lifespan 이벤트 ==========
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI 라이프사이클 관리"""
+    # Startup
+    print("\n[Host] Host Agent 시작 중...")
+    agents = await discover_agents()
+    
+    if len(agents) < 2:
+        print("[Host] ⚠️  경고: 일부 Agent가 실행되지 않았습니다.")
+        print("[Host] 뉴스 Agent(10020), 논문 Agent(10021)를 먼저 실행하세요.")
+    
+    yield
+    
+    # Shutdown
+    print("\n[Host] Host Agent 종료 중...")
+
+
 # FastAPI 앱
-app = FastAPI(title="Host Agent", description="트렌드 분석 조율 Agent")
+app = FastAPI(
+    title="Host Agent",
+    description="트렌드 분석 조율 Agent",
+    lifespan=lifespan
+)
 
 # LLM 설정
 llm = AzureChatOpenAI(
@@ -53,7 +117,7 @@ embeddings = AzureOpenAIEmbeddings(
     azure_endpoint=os.getenv("AOAI_ENDPOINT"),
     api_key=os.getenv("AOAI_API_KEY"),
     azure_deployment=os.getenv("AOAI_DEPLOY_EMBED_3_LARGE"),
-    chunk_size=1  # 동시 사용 제한
+    chunk_size=1
 )
 
 
@@ -402,6 +466,104 @@ async def rag_query(request: RAGQueryRequest):
     except Exception as e:
         print(f"[Host] RAG 질의 실패: {e}")
         raise HTTPException(status_code=500, detail=f"답변 생성 중 오류 발생: {e}")
+
+
+@app.get("/.well-known/agent-card.json")
+async def agent_card():
+    """
+    Agent Card - A2A 표준 프로토콜
+    Agent의 능력과 스펙을 공개
+    """
+    return {
+        "version": "1.0.0",
+        "name": "Host Agent",
+        "description": "트렌드 분석 조율 Agent. Multi-Agent 협업 및 RAG 기반 Q&A 제공.",
+        "url": "http://localhost:10023",
+        "capabilities": [
+            {
+                "name": "analyze_trend",
+                "description": "기술 트렌드 자동 분석 (뉴스 + 논문 통합)",
+                "endpoint": "/analyze",
+                "method": "POST",
+                "parameters": {
+                    "topic": {
+                        "type": "string",
+                        "description": "분석할 기술 주제",
+                        "required": True,
+                        "example": "RAG"
+                    },
+                    "max_news": {
+                        "type": "integer",
+                        "description": "최대 뉴스 개수",
+                        "required": False,
+                        "default": 5
+                    },
+                    "max_papers": {
+                        "type": "integer",
+                        "description": "최대 논문 개수",
+                        "required": False,
+                        "default": 5
+                    }
+                },
+                "response_schema": {
+                    "type": "AnalyzeResponse",
+                    "properties": {
+                        "report": "string (markdown)",
+                        "session_id": "string (uuid)"
+                    }
+                }
+            },
+            {
+                "name": "rag_query",
+                "description": "RAG 기반 추가 질문 (분석 결과 기반)",
+                "endpoint": "/rag_query",
+                "method": "POST",
+                "parameters": {
+                    "query": {
+                        "type": "string",
+                        "description": "질문 내용",
+                        "required": True,
+                        "example": "RAG 구현 시 주의사항은?"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "분석 세션 ID",
+                        "required": True
+                    }
+                },
+                "response_schema": {
+                    "type": "RAGQueryResponse",
+                    "properties": {
+                        "answer": "string (출처 포함)"
+                    }
+                }
+            }
+        ],
+        "dependencies": [
+            {
+                "name": "뉴스 Agent",
+                "url": "http://localhost:10020",
+                "type": "A2A"
+            },
+            {
+                "name": "논문 Agent",
+                "url": "http://localhost:10021",
+                "type": "A2A"
+            }
+        ],
+        "features": [
+            "Multi-Agent A2A 협업",
+            "LangGraph 워크플로우",
+            "RAG (Retrieval-Augmented Generation)",
+            "Vector Database (FAISS)",
+            "세션 기반 Q&A"
+        ],
+        "tags": ["orchestration", "rag", "analysis", "multi-agent"],
+        "author": "Tech Trend Scout Team",
+        "contact": "http://localhost:10023",
+        "created_at": "2025-01-13",
+        "updated_at": "2025-01-13"
+    }
 
 
 if __name__ == "__main__":
